@@ -15,19 +15,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive # OBLIGATORIO: Globed tiene muchas dependencias internas
+          submodules: recursive # OBLIGATORIO para Globed
 
       - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Install Geode CLI
-        shell: bash
+      - name: Install Geode CLI (via Cargo)
+        # Usamos Cargo ya que el runner de windows-latest ya tiene Rust
         run: |
-          # Instalación manual del CLI para evitar el error de resolución de la acción
-          curl -sSL https://raw.githubusercontent.com/geode-sdk/cli/main/install.sh | bash
-          echo "$HOME/.geode/bin" >> $GITHUB_PATH
+          cargo install geode-cli
+          # Cargo instala en ~/.cargo/bin, que ya suele estar en el PATH de GitHub
+          # pero por si acaso forzamos la actualización del PATH
+          echo "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Setup Geode SDK
         run: |
@@ -40,7 +41,7 @@ jobs:
           if (Test-Path "requirements.txt") { pip install -r requirements.txt }
 
       - name: Build with geobuild
-        # Usamos el script oficial del creador de Globed
+        # Script específico de Globed
         run: |
           python geobuild.py --platform win
 
