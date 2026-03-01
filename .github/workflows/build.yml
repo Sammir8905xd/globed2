@@ -22,13 +22,11 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Geode CLI (via Cargo)
-        # Usamos Cargo ya que el runner de windows-latest ya tiene Rust
+      - name: Install Geode CLI (via Winget)
         run: |
-          cargo install geode-cli
-          # Cargo instala en ~/.cargo/bin, que ya suele estar en el PATH de GitHub
-          # pero por si acaso forzamos la actualización del PATH
-          echo "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          winget install GeodeSDK.GeodeCLI --accept-source-agreements --accept-package-agreements
+          # Añadimos la ruta de instalación de Geode al PATH
+          echo "$env:LOCALAPPDATA\Geode\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Setup Geode SDK
         run: |
