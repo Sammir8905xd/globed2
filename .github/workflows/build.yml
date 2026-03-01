@@ -23,13 +23,28 @@ jobs:
           python-version: '3.12'
 
       - name: Install Geode CLI (via Winget)
+        shell: pwsh
         run: |
           winget install GeodeSDK.GeodeCLI --accept-source-agreements --accept-package-agreements
-          # Añadimos la ruta de instalación de Geode al PATH
-          echo "$env:LOCALAPPDATA\Geode\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          
+          # Buscamos dónde se instaló realmente para evitar errores de PATH
+          $geodePath = Join-Path $env:LOCALAPPDATA "Geode\bin"
+          if (Test-Path "$geodePath\geode.exe") {
+            Write-Host "Geode found at $geodePath"
+            echo "$geodePath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          } else {
+            # Intento alternativo en archivos de programa si winget lo mandó ahí
+            $altPath = "C:\Program Files\GeodeSDK\bin"
+            if (Test-Path "$altPath\geode.exe") {
+               echo "$altPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            }
+          }
 
       - name: Setup Geode SDK
+        shell: pwsh
         run: |
+          # Refrescamos el PATH para esta sesión de shell específica
+          $env:PATH += ";$env:LOCALAPPDATA\Geode\bin"
           geode profile add default
           geode sdk install nightly
 
@@ -39,8 +54,10 @@ jobs:
           if (Test-Path "requirements.txt") { pip install -r requirements.txt }
 
       - name: Build with geobuild
-        # Script específico de Globed
+        shell: pwsh
         run: |
+          # Aseguramos el PATH de nuevo para el script de compilación
+          $env:PATH += ";$env:LOCALAPPDATA\Geode\bin"
           python geobuild.py --platform win
 
       - name: Upload Artifact
