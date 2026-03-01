@@ -22,9 +22,17 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Setup Geode CLI
-        uses: geode-sdk/setup-geode@main
-        # Esto instala el SDK de Geode automáticamente
+      - name: Install Geode CLI
+        shell: bash
+        run: |
+          # Instalación manual del CLI para evitar el error de resolución de la acción
+          curl -sSL https://raw.githubusercontent.com/geode-sdk/cli/main/install.sh | bash
+          echo "$HOME/.geode/bin" >> $GITHUB_PATH
+
+      - name: Setup Geode SDK
+        run: |
+          geode profile add default
+          geode sdk install nightly
 
       - name: Install Python Dependencies
         run: |
