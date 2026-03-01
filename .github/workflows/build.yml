@@ -27,26 +27,39 @@ jobs:
         run: |
           winget install GeodeSDK.GeodeCLI --accept-source-agreements --accept-package-agreements
           
-          # Buscamos dónde se instaló realmente para evitar errores de PATH
-          $geodePath = Join-Path $env:LOCALAPPDATA "Geode\bin"
-          if (Test-Path "$geodePath\geode.exe") {
-            Write-Host "Geode found at $geodePath"
-            echo "$geodePath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          } else {
-            # Intento alternativo en archivos de programa si winget lo mandó ahí
-            $altPath = "C:\Program Files\GeodeSDK\bin"
-            if (Test-Path "$altPath\geode.exe") {
-               echo "$altPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # Forzamos la búsqueda del ejecutable en las rutas comunes de winget
+          $possiblePaths = @(
+            (Join-Path $env:LOCALAPPDATA "Geode\bin"),
+            "C:\Program Files\GeodeSDK\bin",
+            "$env:USERPROFILE\.geode\bin"
+          )
+
+          foreach ($path in $possiblePaths) {
+            if (Test-Path "$path\geode.exe") {
+              Write-Host "Geode found at $path"
+              echo "$path" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+              break
             }
           }
 
       - name: Setup Geode SDK
         shell: pwsh
         run: |
-          # Refrescamos el PATH para esta sesión de shell específica
-          $env:PATH += ";$env:LOCALAPPDATA\Geode\bin"
-          geode profile add default
-          geode sdk install nightly
+          # Intentamos encontrar el ejecutable para invocarlo directamente si el alias falla
+          $geodeExe = Get-Command geode -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+          if (-not $geodeExe) {
+            $geodeExe = (Get-ChildItem -Path "$env:LOCALAPPDATA\Geode\bin\geode.exe", "C:\Program Files\GeodeSDK\bin\geode.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          }
+
+          if (-not $geodeExe) {
+            throw "No se pudo encontrar geode.exe en el sistema."
+          }
+
+          Write-Host "Using geode executable at: $geodeExe"
+          
+          # Usamos la ruta absoluta para evitar el error de 'not recognized'
+          & $geodeExe profile add default
+          & $geodeExe sdk install nightly
 
       - name: Install Python Dependencies
         run: |
@@ -56,8 +69,12 @@ jobs:
       - name: Build with geobuild
         shell: pwsh
         run: |
-          # Aseguramos el PATH de nuevo para el script de compilación
-          $env:PATH += ";$env:LOCALAPPDATA\Geode\bin"
+          # Obtenemos la ruta absoluta de geode de nuevo para el proceso de build
+          $geodeExe = (Get-ChildItem -Path "$env:LOCALAPPDATA\Geode\bin\geode.exe", "C:\Program Files\GeodeSDK\bin\geode.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if ($geodeExe) {
+            $env:PATH += ";$(Split-Path $geodeExe)"
+          }
+          
           python geobuild.py --platform win
 
       - name: Upload Artifact
