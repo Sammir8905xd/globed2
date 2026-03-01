@@ -57,8 +57,15 @@ jobs:
 
           Write-Host "Invocando Geode desde: $geodeExe"
           
-          # Usamos & para ejecutar la ruta absoluta
-          & $geodeExe profile add default
+          # Setup inicial para evitar errores de perfiles inexistentes
+          & $geodeExe config setup
+          
+          # Nueva sintaxis: geode profile add --name <NOMBRE> <RUTA>
+          # Usamos "." como ruta temporal ya que en el runner no necesitamos una instalación real de GD para compilar
+          & $geodeExe profile add --name default .
+          & $geodeExe profile set-default default
+          
+          # Instalación del SDK
           & $geodeExe sdk install nightly
 
       - name: Install Python Dependencies
