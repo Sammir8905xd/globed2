@@ -47,9 +47,14 @@ jobs:
           if (-not $geodeExe) { $geodeExe = "geode" }
 
           & $geodeExe config setup
+          # Eliminamos errores de interacción con perfiles
           & $geodeExe profile add --name default .
-          & $geodeExe profile set-default default
           & $geodeExe sdk install nightly
+          & $geodeExe sdk install-binaries
+          
+          # Exportamos la variable de entorno necesaria para CMake/geobuild
+          $sdkPath = & $geodeExe sdk path
+          echo "GEODE_SDK=$sdkPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install Python Dependencies
         run: |
@@ -66,11 +71,13 @@ jobs:
           }
 
           # FIX para NameError: name 'Build' is not defined
-          # Insertamos 'from __future__ import annotations' al principio del script de Globed
           $content = Get-Content geobuild.py
-          $newContent = @("from __future__ import annotations") + $content
-          Set-Content geobuild.py $newContent
+          if (-not ($content -match "from __future__ import annotations")) {
+            $newContent = @("from __future__ import annotations") + $content
+            Set-Content geobuild.py $newContent
+          }
 
+          # Ejecutamos el build con la variable de entorno ya cargada
           python geobuild.py --platform win
 
       - name: Upload Artifact
