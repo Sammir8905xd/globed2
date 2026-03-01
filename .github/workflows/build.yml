@@ -46,15 +46,21 @@ jobs:
           $geodeExe = (Get-ChildItem -Path "$env:LOCALAPPDATA\Geode\bin\geode.exe", "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\*\geode.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
           if (-not $geodeExe) { $geodeExe = "geode" }
 
+          # Definimos una ruta fija para el SDK
+          $sdkPath = Join-Path $env:USERPROFILE "geode-sdk"
+          New-Item -ItemType Directory -Force -Path $sdkPath
+
           & $geodeExe config setup
-          # Eliminamos errores de interacción con perfiles
           & $geodeExe profile add --name default .
-          & $geodeExe sdk install nightly
+          
+          # Instalamos el SDK en la ruta específica y la vinculamos
+          & $geodeExe sdk install nightly $sdkPath
+          & $geodeExe sdk set-path $sdkPath
           & $geodeExe sdk install-binaries
           
-          # Exportamos la variable de entorno necesaria para CMake/geobuild
-          $sdkPath = & $geodeExe sdk path
+          # Exportamos la variable de entorno manualmente
           echo "GEODE_SDK=$sdkPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "GEODE_SDK set to $sdkPath"
 
       - name: Install Python Dependencies
         run: |
