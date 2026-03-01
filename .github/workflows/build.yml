@@ -27,17 +27,12 @@ jobs:
         run: |
           winget install GeodeSDK.GeodeCLI --accept-source-agreements --accept-package-agreements
           
-          # Winget suele instalar en esta ruta específica para el usuario
           $geodeDir = Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages\GeodeSDK.GeodeCLI_Microsoft.Winget.Source_8wekyb3d8bbwe"
-          
-          # Si no está ahí, buscamos en la ruta estándar de Geode
           if (-not (Test-Path $geodeDir)) {
             $geodeDir = Join-Path $env:LOCALAPPDATA "Geode\bin"
           }
 
-          # Búsqueda profunda si las anteriores fallan
           if (-not (Test-Path (Join-Path $geodeDir "geode.exe"))) {
-            Write-Host "Buscando geode.exe recursivamente..."
             $find = Get-ChildItem -Path "$env:LOCALAPPDATA" -Filter "geode.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($find) { $geodeDir = $find.DirectoryName }
           }
@@ -48,24 +43,12 @@ jobs:
       - name: Setup Geode SDK
         shell: pwsh
         run: |
-          # Intentamos localizar el ejecutable buscando en el PATH actualizado o rutas comunes
           $geodeExe = (Get-ChildItem -Path "$env:LOCALAPPDATA\Geode\bin\geode.exe", "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\*\geode.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          
-          if (-not $geodeExe) {
-            $geodeExe = "geode" # Fallback al alias si el PATH funcionó
-          }
+          if (-not $geodeExe) { $geodeExe = "geode" }
 
-          Write-Host "Invocando Geode desde: $geodeExe"
-          
-          # Setup inicial para evitar errores de perfiles inexistentes
           & $geodeExe config setup
-          
-          # Nueva sintaxis: geode profile add --name <NOMBRE> <RUTA>
-          # Usamos "." como ruta temporal ya que en el runner no necesitamos una instalación real de GD para compilar
           & $geodeExe profile add --name default .
           & $geodeExe profile set-default default
-          
-          # Instalación del SDK
           & $geodeExe sdk install nightly
 
       - name: Install Python Dependencies
@@ -76,12 +59,18 @@ jobs:
       - name: Build with geobuild
         shell: pwsh
         run: |
-          # Aseguramos que el script de python encuentre el binario de geode
+          # Localizamos geode para el PATH
           $geodeExe = (Get-ChildItem -Path "$env:LOCALAPPDATA" -Filter "geode.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
           if ($geodeExe) {
             $env:PATH += ";$(Split-Path $geodeExe)"
           }
-          
+
+          # FIX para NameError: name 'Build' is not defined
+          # Insertamos 'from __future__ import annotations' al principio del script de Globed
+          $content = Get-Content geobuild.py
+          $newContent = @("from __future__ import annotations") + $content
+          Set-Content geobuild.py $newContent
+
           python geobuild.py --platform win
 
       - name: Upload Artifact
